@@ -1,5 +1,3 @@
-drop table runner_play CASCADE;
-
 create table if not exists game (
     gamePk integer primary key, 
     gameDate timestamp with time zone,
@@ -52,5 +50,5 @@ create table if not exists runner_play (
     is_secondtohome BOOLEAN,
 
     primary key (gamepk, atbatindex, playindex, runnerid)
-)   
+); 
 

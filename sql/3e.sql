@@ -1,22 +1,33 @@
 -- 3 a) --
-with game_winning_team as 
-(
-    select gamepk, 
-        case when awayteamscore > hometeamscore then awayteamid
-        else hometeamid
-        end as winningteamid
-    from game 
+with winning_teams as (
+    (
+        select
+            gamepk,
+            awayteamid as teamid,
+            awayteamname as teamname
+        from game
+        where
+            awayteamscore > hometeamscore
+    )
+    union all
+    (
+        select
+            gamepk,
+            hometeamid as teamid,
+            hometeamname as teamname
+        from game
+        where
+            hometeamscore > awayteamscore
+    )
 ), trailing_team as (
     select distinct gamepk, battingteamid 
     from linescore
     where battingteam_score_diff < 0
 )
-select 
-game_winning_team.winningteamid,
-    count(distinct game_winning_team.gamepk) as comebackwins
-from trailing_team
-inner join game_winning_team
-on trailing_team.gamepk = game_winning_team.gamepk and trailing_team.battingteamid = game_winning_team.winningteamid
-group by game_winning_team.winningteamid
-order by comebackwins desc 
-limit 5
+select winning_teams.teamid, winning_teams.teamname, count(distinct winning_teams.gamepk) as comebackwins
+from winning_teams 
+inner join trailing_team
+on winning_teams.gamepk = trailing_team.gamepk and winning_teams.teamid = trailing_team.battingteamid
+group by winning_teams.teamid, winning_teams.teamname
+order by comebackwins desc
+limit 5;

@@ -5,19 +5,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# 2 a)
 def process_games(path: str):
-    df = pl.read_csv(path, has_header=True)
+    df = pl.read_csv(path, has_header=True).rename(lambda col: col.lower())
 
+    # removes duplicates
     remove_duplicates = (
         df.with_columns(
-            pl.col("gameDate")
+            pl.col("gamedate")
             .rank("ordinal", descending=True)
-            .over("gamePk")
+            .over("gamepk")
             .alias("rank")
         )
         .filter(pl.col("rank") == 1)
         .drop(pl.col("rank"))
-        .rename(lambda col: col.lower())
     )
 
     remove_duplicates.write_database(
@@ -25,11 +26,15 @@ def process_games(path: str):
     )
 
 
+# 2 b)
 def process_linescores(path: str):
     df = pl.read_csv(path, has_header=True).rename(lambda col: col.lower())
 
+    # removes duplicates
     remove_duplicates = df.unique()
 
+    # calculate the battingteam_score by applying a window function of cumulative sum + lag
+    # over the partition by gamepk and battingteam and sorted by inning in ascending order
     result = remove_duplicates.with_columns(
         pl.col("runs")
         .cast(pl.Int64)
@@ -37,12 +42,15 @@ def process_linescores(path: str):
         .shift(fill_value=0)
         .over(["gamepk", "battingteamid"], order_by="inning", descending=False)
         .alias("battingteam_score")
-    ).with_columns(
-        battingteam_score_diff=pl.col("battingteam_score")
-        - (pl.col("battingteam_score") + pl.col("runs").cast(pl.Int64))
+    )
+    # calculate the opponent's score by the start of the team's half inning
+    result = result.with_columns(
+        (pl.col("battingteam_score") + pl.col("runs").cast(pl.Int64))
         .shift(fill_value=0)
         .over(["gamepk"], order_by=["inning", "half"], descending=False)
-        .alias("comparison")
+        .alias("opponent_score")
+    ).with_columns(
+        battingteam_score_diff=pl.col("battingteam_score") - pl.col("opponent_score")
     )
 
     result.write_database(
@@ -50,6 +58,7 @@ def process_linescores(path: str):
     )
 
 
+# 2 c)
 def process_runners(path: str):
     df = pl.read_csv(path, has_header=True).rename(lambda col: col.lower())
 
@@ -109,6 +118,7 @@ def process_runners(path: str):
 
 
 if __name__ == "__main__":
-    # process("./**/games.csv")
+    pass
+    # process_games("./**/games.csv")
     # process_linescores("./**/linescores.csv")
-    process_runners("./**/runners.csv")
+    # process_runners("./**/runners.csv")
