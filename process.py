@@ -44,13 +44,18 @@ def process_linescores(path: str):
         .alias("battingteam_score")
     )
     # calculate the opponent's score by the start of the team's half inning
-    result = result.with_columns(
-        (pl.col("battingteam_score") + pl.col("runs").cast(pl.Int64))
-        .shift(fill_value=0)
-        .over(["gamepk"], order_by=["inning", "half"], descending=False)
-        .alias("opponent_score")
-    ).with_columns(
-        battingteam_score_diff=pl.col("battingteam_score") - pl.col("opponent_score")
+    result = (
+        result.with_columns(
+            (pl.col("battingteam_score") + pl.col("runs").cast(pl.Int64))
+            .shift(fill_value=0)
+            .over(["gamepk"], order_by=["inning", "half"], descending=False)
+            .alias("opponent_score")
+        )
+        .with_columns(
+            battingteam_score_diff=pl.col("battingteam_score")
+            - pl.col("opponent_score")
+        )
+        .drop("opponent_score")
     )
 
     result.write_database(
@@ -104,21 +109,13 @@ def process_runners(path: str):
             pl.col("reachedbase").str.replace("4B", "HM"),
             pl.col("endbase").str.replace("4B", "HM"),
             is_risp=pl.col("startbase") > "1B",
-            is_firsttothird=(pl.col("startbase") == "1B")
-            & (pl.col("reachedbase") == "3B"),
+            is_firsttothird=(pl.col("startbase") == "1B") & (pl.col("endbase") == "3B"),
             is_secondtohome=(pl.col("eventtype") != "home_run")
             & (pl.col("startbase") == "2B")
-            & (pl.col("reachedbase") == "4B"),
+            & (pl.col("endbase") == "4B"),
         )
     )
 
     result.write_database(
         "runner_play", os.environ["CONNECTION"], if_table_exists="append"
     )
-
-
-if __name__ == "__main__":
-    pass
-    # process_games("./**/games.csv")
-    # process_linescores("./**/linescores.csv")
-    # process_runners("./**/runners.csv")
